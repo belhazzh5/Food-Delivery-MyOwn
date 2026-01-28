@@ -10,7 +10,7 @@ pipeline {
 
     tools {
         nodejs 'NodeJS 18'
-	SonarRunnerInstallation 'SonarQube-K8s'
+	hudson.plugins.sonar.SonarRunnerInstallation 'SonarQube-K8s'
     }
 
     stages {
