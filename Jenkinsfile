@@ -21,7 +21,7 @@ pipeline {
         stage('Install Deps') {
             steps {
                 sh 'cd backend && npm install'
-                sh 'cd ../frontend && npm install'
+                sh 'cd frontend && npm install'
             }
         }
 
