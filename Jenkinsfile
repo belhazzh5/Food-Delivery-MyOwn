@@ -27,14 +27,16 @@ pipeline {
 
         stage('SAST (Sonar)') {
             steps {
-                sh '''
-                cd backend
-                sonar-scanner \
-                  -Dsonar.projectKey=Food-Delivery-MyVersion \
-                  -Dsonar.host.url=$SONAR_HOST_URL \
-                  -Dsonar.login=$SONAR_AUTH_TOKEN
-                '''
-            }
+            	withSonarQubeEnv('SonarQube-K8s') { 
+                    sh '''
+                    cd backend
+                    sonar-scanner \
+                      -Dsonar.projectKey=Food-Delivery-MyOwn \
+                      -Dsonar.sources=. \
+                      -Dsonar.javascript.lcov.reportPaths=**/coverage/lcov.info 
+                      -Dsonar.exclusions=node_modules/**,dist/**,build/**
+                    '''
+			}
         }
 
         stage('Quality Gate') {
