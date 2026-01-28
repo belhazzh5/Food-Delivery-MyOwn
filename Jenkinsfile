@@ -33,7 +33,7 @@ pipeline {
                     sonar-scanner \
                       -Dsonar.projectKey=Food-Delivery-MyOwn \
                       -Dsonar.sources=. \
-                      -Dsonar.javascript.lcov.reportPaths=**/coverage/lcov.info 
+                      -Dsonar.javascript.lcov.reportPaths=**/coverage/lcov.info \
                       -Dsonar.exclusions=node_modules/**,dist/**,build/**
                     '''
 			}
