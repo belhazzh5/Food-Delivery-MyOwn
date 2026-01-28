@@ -7,14 +7,16 @@ pipeline {
         SONAR_HOST_URL = "http://10.233.53.139:9000"
         SONAR_AUTH_TOKEN = credentials('sonar-token')
     }
+
     tools {
-	nodejs 'NodeJS 18'
-	}
+        nodejs 'NodeJS 18'
+    }
 
     stages {
+
         stage('Checkout') {
             steps {
-                git branch: 'main' ,url: 'https://github.com/belhazzh5/Food-Delivery-MyOwn.git'
+                git branch: 'main', url: 'https://github.com/belhazzh5/Food-Delivery-MyOwn.git'
             }
         }
 
@@ -27,7 +29,7 @@ pipeline {
 
         stage('SAST (Sonar)') {
             steps {
-            	withSonarQubeEnv('SonarQube-K8s') { 
+                withSonarQubeEnv('SonarQube-K8s') {
                     sh '''
                     cd backend
                     sonar-scanner \
@@ -36,7 +38,8 @@ pipeline {
                       -Dsonar.javascript.lcov.reportPaths=**/coverage/lcov.info \
                       -Dsonar.exclusions=node_modules/**,dist/**,build/**
                     '''
-			}
+                }
+            }
         }
 
         stage('Quality Gate') {
