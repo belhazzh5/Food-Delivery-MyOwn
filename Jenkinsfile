@@ -10,7 +10,6 @@ pipeline {
 
     tools {
         nodejs 'NodeJS 18'
-	hudson.plugins.sonar.SonarRunnerInstallation 'SonarQube-K8s'
     }
 
     stages {
@@ -30,16 +29,20 @@ pipeline {
 
         stage('SAST (Sonar)') {
             steps {
-                withSonarQubeEnv('SonarQube-K8s') {
-                    sh '''
-                    cd backend
-                    sonar-scanner \
-                      -Dsonar.projectKey=Food-Delivery-MyOwn \
-                      -Dsonar.sources=. \
-                      -Dsonar.javascript.lcov.reportPaths=**/coverage/lcov.info \
-                      -Dsonar.exclusions=node_modules/**,dist/**,build/**
-                    '''
+                script {
+                    def scannerHome = tool name: 'SonarQube-K8s', type: 'hudson.plugins.sonar.SonarRunnerInstallation'
+                    withSonarQubeEnv('SonarQube-K8s') {
+                        sh """
+                            cd backend
+                            ${scannerHome}/bin/sonar-scanner \
+                              -Dsonar.projectKey=Food-Delivery-MyOwn \
+                              -Dsonar.sources=. \
+                              -Dsonar.javascript.lcov.reportPaths=**/coverage/lcov.info \
+                              -Dsonar.exclusions=node_modules/**,dist/**,build/**
+                        """
+                    }
                 }
+			}
             }
         }
 
