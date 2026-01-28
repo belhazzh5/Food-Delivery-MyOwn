@@ -4,7 +4,7 @@ pipeline {
     environment {
         DOCKER_REGISTRY = "haboubi"
         K8S_NAMESPACE = "food-delivery"
-        SONAR_HOST_URL = "http://sonarqube:9000"
+        SONAR_HOST_URL = "http://10.233.53.139:9000"
         SONAR_AUTH_TOKEN = credentials('sonar-token')
     }
 
