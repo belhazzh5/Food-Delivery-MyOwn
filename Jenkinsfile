@@ -10,6 +10,7 @@ pipeline {
 
     tools {
         nodejs 'NodeJS 18'
+	sonarQubeScanner 'SonarQube-K8s'
     }
 
     stages {
