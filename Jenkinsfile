@@ -7,6 +7,9 @@ pipeline {
         SONAR_HOST_URL = "http://10.233.53.139:9000"
         SONAR_AUTH_TOKEN = credentials('sonar-token')
     }
+    tools {
+	nodejs 'NodeJS 18'
+	}
 
     stages {
         stage('Checkout') {
