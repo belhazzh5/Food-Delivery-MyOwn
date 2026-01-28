@@ -11,7 +11,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main',  credentialsId: 'github-pat' ,url: 'https://github.com/belhazzh5/Food-Delivery-MyVersion.git'
+                git branch: 'main' ,url: 'https://github.com/belhazzh5/Food-Delivery-MyOwn.git'
             }
         }
 
