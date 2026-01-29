@@ -1,4 +1,4 @@
-onst request = require('supertest');
+const request = require('supertest');
 const mongoose = require('mongoose');
 const app = require('../server');
 describe('API Integration Tests', () => {

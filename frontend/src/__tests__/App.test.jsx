@@ -21,4 +21,3 @@ fireEvent.click(cartLink);
 expect(window.location.pathname).toBe('/cart');
 });
 });
-

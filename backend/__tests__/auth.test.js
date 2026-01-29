@@ -1,3 +1,5 @@
+const jwt = require('jsonwebtoken');
+const authMiddleware = require('../middleware/auth');
 // Mock jwt
 jest.mock('jsonwebtoken');
 describe('Auth Middleware', () => {
@@ -19,7 +21,7 @@ await authMiddleware(mockReq, mockRes, mockNext);
 expect(mockRes.json).toHaveBeenCalledWith({
 success: false,
 message: 'Not Authorized Login Again'
-});     
+});
 expect(mockNext).not.toHaveBeenCalled();
 });
 test('should call next() with valid token', async () => {
@@ -42,5 +44,3 @@ message: 'Error'
 });
 });
 });
-                                                                                                                                                                46,3          Bot
-
