@@ -1,10 +1,39 @@
 pipeline {
-    agent any
+    agent {
+        kubernetes {
+            yaml '''
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    jenkins: pipeline
+spec:
+  containers:
+  - name: jnlp
+    image: jenkins/inbound-agent:alpine-jdk21
+    args: ['${computer.jnlpmac}', '${computer.name}']
+  - name: kaniko
+    image: gcr.io/kaniko-project/executor:debug
+    imagePullPolicy: Always
+    command:
+    - sleep
+    args:
+    - 99d
+    volumeMounts:
+    - name: kaniko-secret
+      mountPath: /kaniko/.docker
+  volumes:
+  - name: kaniko-secret
+    secret:
+      secretName: regcred
+'''
+        }
+    }
 
     environment {
         DOCKER_REGISTRY = "haboubi"
-        K8S_NAMESPACE = "food-delivery"
-        SONAR_HOST_URL = "http://10.233.53.139:9000"
+        K8S_NAMESPACE   = "food-delivery"
+        SONAR_HOST_URL  = "http://10.233.53.139:9000"
         SONAR_AUTH_TOKEN = credentials('sonar-token')
     }
 
@@ -13,7 +42,6 @@ pipeline {
     }
 
     stages {
-
         stage('Checkout') {
             steps {
                 git branch: 'main', url: 'https://github.com/belhazzh5/Food-Delivery-MyOwn.git'
@@ -75,36 +103,48 @@ pipeline {
             }
         }
 
-stage('Build & Push Images (Kaniko)') {
-    steps {
-        sh '''
-        WORKDIR="/var/jenkins_home/workspace/${JOB_NAME}"
+        stage('Build & Push Images (Kaniko)') {
+            steps {
+                container('kaniko') {
+                    sh '''
+                    echo "Running inside Kaniko container"
+                    ls -la /kaniko
+                    /kaniko/executor --version || echo "Kaniko version check failed"
 
-        /kaniko/executor \
-          --dockerfile=$WORKDIR/backend/Dockerfile \
-          --context=dir://$WORKDIR/backend \
-          --destination=$DOCKER_REGISTRY/food-backend:latest \
-          --cache=true
+                    # Build & push backend
+                    /kaniko/executor \
+                      --context dir://${WORKSPACE}/backend \
+                      --dockerfile ${WORKSPACE}/backend/Dockerfile \
+                      --destination ${DOCKER_REGISTRY}/food-backend:latest \
+                      --cache=true \
+                      --verbosity info || echo "Backend build failed"
 
-        /kaniko/executor \
-          --dockerfile=$WORKDIR/frontend/Dockerfile \
-          --context=dir://$WORKDIR/frontend \
-          --destination=$DOCKER_REGISTRY/food-frontend:latest \
-          --cache=true
-        '''
-    }
-}
-
+                    # Build & push frontend
+                    /kaniko/executor \
+                      --context dir://${WORKSPACE}/frontend \
+                      --dockerfile ${WORKSPACE}/frontend/Dockerfile \
+                      --destination ${DOCKER_REGISTRY}/food-frontend:latest \
+                      --cache=true \
+                      --verbosity info || echo "Frontend build failed"
+                    '''
+                }
+            }
+        }
 
         stage('Deploy to K8s') {
             steps {
                 sh '''
-                kubectl apply -f kubernetes/ -n $K8S_NAMESPACE
-                kubectl rollout restart deployment/backend -n $K8S_NAMESPACE
-                kubectl rollout restart deployment/frontend -n $K8S_NAMESPACE
+                kubectl apply -f kubernetes/ -n ${K8S_NAMESPACE}
+                kubectl rollout restart deployment/backend -n ${K8S_NAMESPACE}
+                kubectl rollout restart deployment/frontend -n ${K8S_NAMESPACE}
                 '''
             }
         }
     }
-}
 
+    post {
+        always {
+            echo "Pipeline finished - check logs for details"
+        }
+    }
+}
