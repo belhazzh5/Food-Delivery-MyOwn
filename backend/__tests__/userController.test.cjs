@@ -36,7 +36,7 @@ describe('User Controller', () => {
     test('should login user successfully', async () => {
       mockReq.body = {
         email: 'test@example.com',
-        password: 'password123'
+        password: process.env.TEST_PASSWORD
       };
 
       const mockUser = {
@@ -53,7 +53,7 @@ describe('User Controller', () => {
       await loginUser(mockReq, mockRes);
 
       expect(userModel.findOne).toHaveBeenCalledWith({ email: 'test@example.com' });
-      expect(bcrypt.compare).toHaveBeenCalledWith('password123', 'hashedPassword');
+      expect(bcrypt.compare).toHaveBeenCalledWith(process.env.TEST_PASSWORD, 'hashedPassword');
       expect(mockRes.json).toHaveBeenCalledWith({
         success: true,
         token: 'mock-token',
@@ -64,7 +64,7 @@ describe('User Controller', () => {
     test('should reject when user does not exist', async () => {
       mockReq.body = {
         email: 'nonexistent@example.com',
-        password: 'password123'
+        password: process.env.TEST_PASSWORD
       };
 
       userModel.findOne = jest.fn().mockResolvedValue(null);
@@ -102,7 +102,7 @@ describe('User Controller', () => {
     test('should handle errors', async () => {
       mockReq.body = {
         email: 'test@example.com',
-        password: 'password123'
+        password: process.env.TEST_PASSWORD
       };
 
       userModel.findOne = jest.fn().mockRejectedValue(new Error('Database error'));
@@ -121,7 +121,7 @@ describe('User Controller', () => {
       mockReq.body = {
         name: 'Test User',
         email: 'newuser@example.com',
-        password: 'password123'
+        password: process.env.TEST_PASSWORD
       };
 
       const mockNewUser = {
@@ -154,7 +154,7 @@ describe('User Controller', () => {
       mockReq.body = {
         name: 'Test User',
         email: 'existing@example.com',
-        password: 'password123'
+        password: process.env.TEST_PASSWORD
       };
 
       userModel.findOne = jest.fn().mockResolvedValue({ email: 'existing@example.com' });
@@ -171,7 +171,7 @@ describe('User Controller', () => {
       mockReq.body = {
         name: 'Test User',
         email: 'invalid-email',
-        password: 'password123'
+        password: process.env.TEST_PASSWORD
       };
 
       userModel.findOne = jest.fn().mockResolvedValue(null);
@@ -207,7 +207,7 @@ describe('User Controller', () => {
       mockReq.body = {
         name: 'Test User',
         email: 'test@example.com',
-        password: 'password123'
+        password: process.env.TEST_PASSWORD
       };
 
       userModel.findOne = jest.fn().mockRejectedValue(new Error('Database error'));

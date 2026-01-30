@@ -48,7 +48,7 @@ describe('API Integration Tests', () => {
       const newUser = {
         name: 'Test User',
         email: 'test@example.com',
-        password: 'password123'
+        password: process.env.TEST_PASSWORD
       };
       const response = await request(app)
         .post('/api/user/register')
