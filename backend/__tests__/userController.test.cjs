@@ -42,7 +42,7 @@ describe('User Controller', () => {
       const mockUser = {
         _id: 'user123',
         email: 'test@example.com',
-        password: 'hashedPassword',
+        password: process.env.TEST_PASSWORD,
         role: 'user'
       };
 
@@ -80,12 +80,12 @@ describe('User Controller', () => {
     test('should reject with invalid credentials', async () => {
       mockReq.body = {
         email: 'test@example.com',
-        password: 'wrongpassword'
+        password: process.env.TEST_PASSWORD
       };
 
       const mockUser = {
         email: 'test@example.com',
-        password: 'hashedPassword'
+        password: process.env.TEST_PASSWORD
       };
 
       userModel.findOne = jest.fn().mockResolvedValue(mockUser);
@@ -189,7 +189,7 @@ describe('User Controller', () => {
       mockReq.body = {
         name: 'Test User',
         email: 'test@example.com',
-        password: 'weak'
+        password: process.env.TEST_PASSWORD
       };
 
       userModel.findOne = jest.fn().mockResolvedValue(null);
