@@ -7,7 +7,7 @@ pipeline {
         SONAR_AUTH_TOKEN = credentials('sonar-token')
     }
     tools {
-        nodejs 'NodeJS 18'  // Make sure this matches your Jenkins NodeJS tool name exactly
+        nodejs 'NodeJS 18'
     }
     stages {
         stage('Checkout') {
@@ -56,7 +56,7 @@ pipeline {
                     stage('Backend Tests') {
                         steps {
                             dir('backend') {
-                                sh 'npm test || true'  // forgiving: continue even if tests fail
+                                sh 'npm test || true'                 // continue even if tests fail
                                 archiveArtifacts artifacts: 'coverage/**', allowEmptyArchive: true
                             }
                         }
