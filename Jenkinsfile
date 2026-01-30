@@ -59,12 +59,28 @@ pipeline {
             }
         }
 
-        stage('Unit Tests') {
-            steps {
-                sh 'cd backend && npm test'
-            }
+stage('Unit Tests') {
+  steps {
+    parallel {
+      stage('Backend Tests') {
+        steps {
+          dir('backend') {
+            sh 'npm test'           // now uses the forgiving script
+            archiveArtifacts artifacts: 'coverage/**', allowEmptyArchive: true
+          }
         }
-
+      }
+      stage('Frontend Tests') {
+        steps {
+          dir('frontend') {
+            sh 'npm test -- --coverage --watchAll=false'
+            archiveArtifacts artifacts: 'coverage/**', allowEmptyArchive: true
+          }
+        }
+      }
+    }
+  }
+}
         stage('Build Docker Images') {
             steps {
                 sh '''
