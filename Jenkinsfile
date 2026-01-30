@@ -56,7 +56,7 @@ pipeline {
                     stage('Backend Tests') {
                         steps {
                             dir('backend') {
-                                sh 'npm test || true'                 // continue even if tests fail
+                                sh 'npm test || true'
                                 archiveArtifacts artifacts: 'coverage/**', allowEmptyArchive: true
                             }
                         }
