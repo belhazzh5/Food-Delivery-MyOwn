@@ -7,7 +7,7 @@ pipeline {
         SONAR_AUTH_TOKEN = credentials('sonar-token')
     }
     tools {
-        nodejs 'NodeJS 18'
+        nodejs 'NodeJS 20'
     }
     stages {
         stage('Checkout') {
