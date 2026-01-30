@@ -51,22 +51,20 @@ pipeline {
             }
         }
         stage('Unit Tests') {
-            steps {
-                parallel {
-                    stage('Backend Tests') {
-                        steps {
-                            dir('backend') {
-                                sh 'npm test || true'
-                                archiveArtifacts artifacts: 'coverage/**', allowEmptyArchive: true
-                            }
+            parallel {
+                stage('Backend Tests') {
+                    steps {
+                        dir('backend') {
+                            sh 'npm test || true'
+                            archiveArtifacts artifacts: 'coverage/**', allowEmptyArchive: true
                         }
                     }
-                    stage('Frontend Tests') {
-                        steps {
-                            dir('frontend') {
-                                sh 'npm test -- --coverage --watchAll=false || true'
-                                archiveArtifacts artifacts: 'coverage/**', allowEmptyArchive: true
-                            }
+                }
+                stage('Frontend Tests') {
+                    steps {
+                        dir('frontend') {
+                            sh 'npm test -- --coverage --watchAll=false || true'
+                            archiveArtifacts artifacts: 'coverage/**', allowEmptyArchive: true
                         }
                     }
                 }
