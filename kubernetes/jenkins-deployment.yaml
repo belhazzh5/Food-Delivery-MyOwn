@@ -1,3 +1,4 @@
+# jenkins-deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -13,21 +14,30 @@ spec:
       labels:
         app: jenkins
     spec:
+      serviceAccountName: jenkins
       securityContext:
         fsGroup: 1000
         runAsUser: 1000
         runAsGroup: 1000
+
       containers:
       - name: jenkins
         image: jenkins/jenkins:lts
         ports:
-        - containerPort: 8080
-        - containerPort: 50000
+          - containerPort: 8080
+          - containerPort: 50000
         volumeMounts:
-        - name: jenkins-data
-          mountPath: /var/jenkins_home
+          - name: jenkins-data
+            mountPath: /var/jenkins_home
+          - name: kaniko-secret
+            mountPath: /kaniko/.docker
+
       volumes:
-      - name: jenkins-data
-        persistentVolumeClaim:
-          claimName: jenkins-pvc
+        - name: jenkins-data
+          persistentVolumeClaim:
+            claimName: jenkins-pvc
+
+        - name: kaniko-secret
+          secret:
+            secretName: regcred
 
