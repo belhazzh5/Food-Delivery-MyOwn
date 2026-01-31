@@ -1,46 +1,15 @@
 pipeline {
-    agent {
-        kubernetes {
-            // Keep failed pods for debugging (remove later if you want cleanup)
-            podRetention always()
-            yaml '''
-apiVersion: v1
-kind: Pod
-metadata:
-  labels:
-    jenkins: pipeline
-spec:
-  containers:
-  - name: jnlp
-    image: jenkins/inbound-agent:alpine-jdk21
-    args: ['${computer.jnlpmac}', '${computer.name}']
-  - name: kaniko
-    image: gcr.io/kaniko-project/executor:v1.23.2
-    imagePullPolicy: Always
-    command:
-    - /busybox/sleep
-    args:
-    - 99d
-    volumeMounts:
-    - name: kaniko-secret
-      mountPath: /kaniko/.docker
-  volumes:
-  - name: kaniko-secret
-    secret:
-      secretName: regcred
-'''
-        }
-    }
+    agent any  // Simple agent (Jenkins controller or any node with Docker/Node)
 
     environment {
-        DOCKER_REGISTRY = "haboubi"
-        K8S_NAMESPACE   = "food-delivery"
-        SONAR_HOST_URL  = "http://10.233.53.139:9000"
-        SONAR_AUTH_TOKEN = credentials('sonar-token')
+        DOCKER_REGISTRY = 'haboubi'  // your username or registry
+        IMAGE_NAME = 'food-delivery'
+        SONAR_HOST_URL = 'http://10.233.53.139:9000'  // from your env
+        SONAR_AUTH_TOKEN = credentials('sonar-token')  // from Jenkins credentials
     }
 
     tools {
-        nodejs 'NodeJS 20'
+        nodejs 'NodeJS-20'  // Change to 'NodeJS-18' if you configured that
     }
 
     stages {
@@ -50,7 +19,7 @@ spec:
             }
         }
 
-        stage('Install Deps') {
+        stage('Install Dependencies') {
             steps {
                 sh '''
                 cd backend && npm install || true
@@ -59,19 +28,16 @@ spec:
             }
         }
 
-        stage('SAST (Sonar)') {
+        stage('SAST - SonarQube') {
             steps {
-                script {
-                    def scannerHome = tool 'SonarQube-K8s'
-                    withSonarQubeEnv('SonarQube-K8s') {
-                        sh """
-                        cd backend
-                        ${scannerHome}/bin/sonar-scanner \
-                          -Dsonar.projectKey=Food-Delivery-MyOwn \
-                          -Dsonar.sources=. \
-                          -Dsonar.exclusions=node_modules/**,dist/**,build/**
-                        """
-                    }
+                withSonarQubeEnv('SonarQube') {  // Matches server name
+                    sh '''
+                    cd backend
+                    sonar-scanner \
+                      -Dsonar.projectKey=Food-Delivery-MyOwn \
+                      -Dsonar.sources=. \
+                      -Dsonar.exclusions=node_modules/**,dist/**,build/**
+                    '''
                 }
             }
         }
@@ -84,20 +50,62 @@ spec:
             }
         }
 
-        stage('Dependency Check') {
+        stage('Dependency Checks') {
+            parallel {
+                stage('npm Audit') {
+                    steps {
+                        sh 'cd backend && npm audit --audit-level=high || true'
+                    }
+                }
+                stage('OWASP Dependency-Check') {
+                    steps {
+                        dependencyCheck(
+                            additionalArguments: '--scan ./backend --scan ./frontend --format HTML --format JSON --prettyPrint',
+                            odcInstallation: 'OWASP-DC'  // exact name from Tools
+                        )
+                        dependencyCheckPublisher pattern: '**/dependency-check-report.json'
+                    }
+                }
+            }
+        }
+
+        stage('Install Trivy') {
             steps {
-                sh 'cd backend && npm audit --audit-level=high || true'
+                sh '''
+                    curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+                    trivy --version
+                '''
+            }
+        }
+
+        stage('Build Images & Trivy Scan') {
+            steps {
+                script {
+                    docker.build("${DOCKER_REGISTRY}/food-backend:latest", "./backend")
+                    docker.build("${DOCKER_REGISTRY}/food-frontend:latest", "./frontend")
+                }
+                sh '''
+                    trivy image --severity HIGH,CRITICAL \
+                      --format json \
+                      --output trivy-backend.json \
+                      ${DOCKER_REGISTRY}/food-backend:latest
+
+                    trivy image --severity HIGH,CRITICAL \
+                      --format json \
+                      --output trivy-frontend.json \
+                      ${DOCKER_REGISTRY}/food-frontend:latest
+                '''
             }
         }
 
         stage('Unit Tests') {
             parallel {
-                stage('Backend Tests') {
+                stage('Backend') {
                     steps {
                         sh 'cd backend && npm test || true'
                     }
                 }
-                stage('Frontend Tests') {
+                stage('Frontend') {
                     steps {
                         sh 'cd frontend && npm test -- --watchAll=false || true'
                     }
@@ -105,48 +113,14 @@ spec:
             }
         }
 
-        stage('Build & Push Images (Kaniko)') {
-            steps {
-                container('kaniko') {
-                    sh '''
-                    echo "=== Running inside Kaniko container ==="
-                    ls -la /kaniko || echo "No /kaniko dir"
-                    /kaniko/executor --version || echo "Version check failed"
-
-                    echo "Building backend..."
-                    /kaniko/executor \
-                      --context dir://${WORKSPACE}/backend \
-                      --dockerfile ${WORKSPACE}/backend/Dockerfile \
-                      --destination ${DOCKER_REGISTRY}/food-backend:latest \
-                      --cache=true \
-                      --verbosity info || echo "Backend build failed"
-
-                    echo "Building frontend..."
-                    /kaniko/executor \
-                      --context dir://${WORKSPACE}/frontend \
-                      --dockerfile ${WORKSPACE}/frontend/Dockerfile \
-                      --destination ${DOCKER_REGISTRY}/food-frontend:latest \
-                      --cache=true \
-                      --verbosity info || echo "Frontend build failed"
-                    '''
-                }
-            }
-        }
-
-        stage('Deploy to K8s') {
-            steps {
-                sh '''
-                kubectl apply -f kubernetes/ -n ${K8S_NAMESPACE} || true
-                kubectl rollout restart deployment/backend -n ${K8S_NAMESPACE} || true
-                kubectl rollout restart deployment/frontend -n ${K8S_NAMESPACE} || true
-                '''
-            }
-        }
+        // Add DAST/Deploy later if needed
     }
 
     post {
         always {
-            echo "Pipeline finished - check logs for details"
+            script {
+                cleanWs()  // safe inside script block
+            }
         }
     }
 }
