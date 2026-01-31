@@ -9,7 +9,7 @@ pipeline {
     }
 
     tools {
-        nodejs 'NodeJS-20.21'  // Updated to match package requirements
+        nodejs 'NodeJS-20'  // Updated to match package requirements
     }
 
     stages {
