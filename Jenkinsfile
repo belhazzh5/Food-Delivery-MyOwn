@@ -32,7 +32,7 @@ pipeline {
             steps {
                 withSonarQubeEnv('SonarQube') {
                     sh """
-                        ${tool 'SonarQubeScanner'}/bin/sonar-scanner \
+                        ${tool 'SonarQube'}/bin/sonar-scanner \
                             -Dsonar.projectKey=Food-Delivery-MyOwn \
                             -Dsonar.sources=. \
                             -Dsonar.exclusions=node_modules/**,dist/**,build/**
