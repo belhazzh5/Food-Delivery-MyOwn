@@ -9,7 +9,7 @@ pipeline {
     }
 
     tools {
-        nodejs 'NodeJS-20'  // Change to 'NodeJS-18' if you configured that
+        nodejs 'NodeJS-18'  // Change to 'NodeJS-18' if you configured that
     }
 
     stages {
