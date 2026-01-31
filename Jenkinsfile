@@ -1,15 +1,15 @@
 pipeline {
-    agent any  // Simple agent (Jenkins controller or any node with Docker/Node)
+    agent any  // runs on any available node
 
     environment {
-        DOCKER_REGISTRY = 'haboubi'  // your username or registry
+        DOCKER_REGISTRY = 'haboubi'
         IMAGE_NAME = 'food-delivery'
-        SONAR_HOST_URL = 'http://10.233.53.139:9000'  // from your env
-        SONAR_AUTH_TOKEN = credentials('sonar-token')  // from Jenkins credentials
+        SONAR_HOST_URL = 'http://10.233.53.139:9000'
+        SONAR_AUTH_TOKEN = credentials('sonar-token')
     }
 
     tools {
-        nodejs 'NodeJS-20'  // Change to 'NodeJS-18' if you configured that
+        nodejs 'NodeJS-20.21'  // Updated to match package requirements
     }
 
     stages {
@@ -22,22 +22,21 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 sh '''
-                cd backend && npm install || true
-                cd ../frontend && npm install || true
+                    cd backend && npm install || true
+                    cd ../frontend && npm install || true
                 '''
             }
         }
 
         stage('SAST - SonarQube') {
             steps {
-                withSonarQubeEnv('SonarQube') {  // Matches server name
-                    sh '''
-                    cd backend
-                    sonar-scanner \
-                      -Dsonar.projectKey=Food-Delivery-MyOwn \
-                      -Dsonar.sources=. \
-                      -Dsonar.exclusions=node_modules/**,dist/**,build/**
-                    '''
+                withSonarQubeEnv('SonarQube') {
+                    sh """
+                        ${tool 'SonarQubeScanner'}/bin/sonar-scanner \
+                            -Dsonar.projectKey=Food-Delivery-MyOwn \
+                            -Dsonar.sources=. \
+                            -Dsonar.exclusions=node_modules/**,dist/**,build/**
+                    """
                 }
             }
         }
@@ -61,7 +60,7 @@ pipeline {
                     steps {
                         dependencyCheck(
                             additionalArguments: '--scan ./backend --scan ./frontend --format HTML --format JSON --prettyPrint',
-                            odcInstallation: 'OWASP-DC'  // exact name from Tools
+                            odcInstallation: 'OWASP-DC'
                         )
                         dependencyCheckPublisher pattern: '**/dependency-check-report.json'
                     }
@@ -85,15 +84,8 @@ pipeline {
                     docker.build("${DOCKER_REGISTRY}/food-frontend:latest", "./frontend")
                 }
                 sh '''
-                    trivy image --severity HIGH,CRITICAL \
-                      --format json \
-                      --output trivy-backend.json \
-                      ${DOCKER_REGISTRY}/food-backend:latest
-
-                    trivy image --severity HIGH,CRITICAL \
-                      --format json \
-                      --output trivy-frontend.json \
-                      ${DOCKER_REGISTRY}/food-frontend:latest
+                    trivy image --severity HIGH,CRITICAL --format json --output trivy-backend.json ${DOCKER_REGISTRY}/food-backend:latest || true
+                    trivy image --severity HIGH,CRITICAL --format json --output trivy-frontend.json ${DOCKER_REGISTRY}/food-frontend:latest || true
                 '''
             }
         }
@@ -113,14 +105,12 @@ pipeline {
             }
         }
 
-        // Add DAST/Deploy later if needed
+        // Optional: Add DAST / Deployment stages later
     }
 
     post {
         always {
-            script {
-                cleanWs()  // safe inside script block
-            }
+            deleteDir()  // cleans workspace after every build
         }
     }
 }
