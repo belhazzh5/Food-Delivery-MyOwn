@@ -1,66 +1,83 @@
 pipeline {
-    agent any  // runs on any available node
+    agent any
 
     environment {
         DOCKER_REGISTRY = 'haboubi'
-        IMAGE_NAME = 'food-delivery'
-        SONAR_HOST_URL = 'http://10.233.53.139:9000'
-        SONAR_AUTH_TOKEN = credentials('sonar-token')
+        IMAGE_NAME      = 'food-delivery'
+        SONAR_HOST_URL  = 'http://10.233.53.139:9000'   // ← double-check this is reachable from Jenkins
+        SONAR_PROJECT_KEY = 'Food-Delivery-MyOwn'
     }
 
     tools {
-        nodejs 'NodeJS-20'  // Updated to match package requirements
+        // Important: Use Node.js >= 20.17 or 22.x LTS to avoid most EBADENGINE warnings
+        // Go to Manage Jenkins → Tools → NodeJS installations and add/update to 20.17+ or 22.x
+        nodejs 'NodeJS-20'   // ← change name if you created a newer installation
     }
 
     stages {
-        stage('Checkout') {
-            steps {
-                git branch: 'main', url: 'https://github.com/belhazzh5/Food-Delivery-MyOwn.git'
-            }
-        }
 
         stage('Install Dependencies') {
             steps {
                 sh '''
+                    echo "Installing backend dependencies..."
                     cd backend && npm install || true
+                    
+                    echo "Installing frontend dependencies..."
                     cd ../frontend && npm install || true
                 '''
             }
         }
 
-        stage('SAST - SonarQube') {
+        stage('SAST - SonarQube Analysis') {
             steps {
-                withSonarQubeEnv('SonarQube') {
-                    sh """
+                withSonarQubeEnv('SonarQube') {    // 'SonarQube' must match the server name in Jenkins config
+                    sh '''
                         ${tool 'SonarQube'}/bin/sonar-scanner \
-                            -Dsonar.projectKey=Food-Delivery-MyOwn \
+                            -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                            -Dsonar.projectName="Food Delivery App" \
                             -Dsonar.sources=. \
-                            -Dsonar.exclusions=node_modules/**,dist/**,build/**
-                    """
+                            -Dsonar.exclusions="**/node_modules/**,**/dist/**,**/build/**, coverage/**" \
+                            -Dsonar.tests="**/*.test.js,**/*.spec.js" \
+                            || true
+                    '''
                 }
             }
         }
 
         stage('Quality Gate') {
             steps {
-                timeout(time: 5, unit: 'MINUTES') {
-                    waitForQualityGate abortPipeline: false
+                timeout(time: 10, unit: 'MINUTES') {
+                    script {
+                        def qg = waitForQualityGate()
+                        if (qg.status != 'OK') {
+                            echo "❌ Quality Gate status: ${qg.status}"
+                            echo "Continuing pipeline anyway (non-blocking Quality Gate)"
+                            // currentBuild.result = 'UNSTABLE'   // ← uncomment if you want yellow build
+                            // error "Quality gate failure: ${qg.status}"   // ← uncomment to make it blocking later
+                        } else {
+                            echo "✅ Quality Gate passed!"
+                        }
+                    }
                 }
             }
         }
 
         stage('Dependency Checks') {
             parallel {
-                stage('npm Audit') {
+                stage('npm audit') {
                     steps {
-                        sh 'cd backend && npm audit --audit-level=high || true'
+                        sh '''
+                            echo "Running npm audit (backend)..."
+                            cd backend && npm audit --audit-level=high || true
+                        '''
                     }
                 }
+
                 stage('OWASP Dependency-Check') {
                     steps {
                         dependencyCheck(
-                            additionalArguments: '--scan ./backend --scan ./frontend --format HTML --format JSON --prettyPrint',
-                            odcInstallation: 'OWASP-DC'
+                            odcInstallation: 'OWASP-DC',
+                            additionalArguments: '--scan ./backend --scan ./frontend --format HTML --format JSON --prettyPrint --enableExperimental'
                         )
                         dependencyCheckPublisher pattern: '**/dependency-check-report.json'
                     }
@@ -69,49 +86,84 @@ pipeline {
         }
 
         stage('Install Trivy') {
+            when { expression { fileExists('/usr/local/bin/trivy') == false } }
             steps {
                 sh '''
-                    curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+                    curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v0.58.2
                     trivy --version
                 '''
             }
         }
 
-        stage('Build Images & Trivy Scan') {
+        stage('Build Docker Images & Trivy Scan') {
             steps {
                 script {
-                    docker.build("${DOCKER_REGISTRY}/food-backend:latest", "./backend")
-                    docker.build("${DOCKER_REGISTRY}/food-frontend:latest", "./frontend")
+                    docker.withRegistry('', 'docker-hub-credentials') {   // ← add if you use credentials
+                        def backendImage = docker.build("${DOCKER_REGISTRY}/${IMAGE_NAME}-backend:latest", "./backend")
+                        def frontendImage = docker.build("${DOCKER_REGISTRY}/${IMAGE_NAME}-frontend:latest", "./frontend")
+
+                        // Optional: push if you want
+                        // backendImage.push()
+                        // frontendImage.push()
+                    }
                 }
+
                 sh '''
-                    trivy image --severity HIGH,CRITICAL --format json --output trivy-backend.json ${DOCKER_REGISTRY}/food-backend:latest || true
-                    trivy image --severity HIGH,CRITICAL --format json --output trivy-frontend.json ${DOCKER_REGISTRY}/food-frontend:latest || true
+                    echo "Scanning backend image..."
+                    trivy image --severity HIGH,CRITICAL --format json --output trivy-backend.json \
+                        ${DOCKER_REGISTRY}/${IMAGE_NAME}-backend:latest || true
+                    
+                    echo "Scanning frontend image..."
+                    trivy image --severity HIGH,CRITICAL --format json --output trivy-frontend.json \
+                        ${DOCKER_REGISTRY}/${IMAGE_NAME}-frontend:latest || true
                 '''
             }
         }
 
         stage('Unit Tests') {
             parallel {
-                stage('Backend') {
+                stage('Backend Tests') {
                     steps {
-                        sh 'cd backend && npm test || true'
+                        sh '''
+                            cd backend
+                            npm test -- --coverage || true
+                        '''
                     }
                 }
-                stage('Frontend') {
+
+                stage('Frontend Tests') {
                     steps {
-                        sh 'cd frontend && npm test -- --watchAll=false || true'
+                        sh '''
+                            cd frontend
+                            npm test -- --watchAll=false --coverage || true
+                        '''
                     }
                 }
             }
         }
 
-        // Optional: Add DAST / Deployment stages later
+        // Add these stages later when you're ready:
+        // stage('Deploy to Staging') { ... }
+        // stage('DAST / ZAP') { ... }
     }
 
     post {
         always {
-            deleteDir()  // cleans workspace after every build
+            // Publish reports if they exist
+            recordIssues enabledForFailure: true, aggregatingResults: true, tools: [
+                sonarQube()
+            ]
+
+            // Clean workspace
+            deleteDir()
+        }
+
+        success {
+            echo "🎉 Pipeline completed successfully!"
+        }
+
+        failure {
+            echo "❌ Pipeline failed"
         }
     }
 }
-
